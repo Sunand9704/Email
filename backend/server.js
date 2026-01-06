@@ -1,14 +1,10 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
-
-console.log('Current working directory:', process.cwd());
-console.log('Loading .env from:', path.resolve(__dirname, '.env'));
-console.log('PORT from .env:', process.env.PORT);
-console.log('MONGO_URI from .env:', process.env.MONGO_URI);
-
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
+const cron = require('node-cron'); // Import cron
 const Email = require('./models/Email');
 
 const app = express();
@@ -17,12 +13,84 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Variables
+const PORT = process.env.PORT || 8000;
+const MONGO_URI = process.env.MONGO_URI;
+
 // Database Connection
-// const MONGO_URI = "mongodb+srv://sunandvemavarapu_db_user:RuNL2Xg0onlWLFg9@cluster0.zcp5b9u.mongodb.net/";
 mongoose
-    .connect("mongodb+srv://sunandvemavarapu_db_user:RuNL2Xg0onlWLFg9@cluster0.zcp5b9u.mongodb.net/")
+    .connect(MONGO_URI)
     .then(() => console.log('MongoDB connected'))
     .catch((err) => console.error('MongoDB connection error:', err));
+
+// Nodemailer Transporter
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+    },
+});
+
+// Helper: Send Email
+const sendRecoveryEmail = async (recipientEmail, targetEmailId) => {
+    const trackingLink = `http://localhost:${PORT}/api/emails/seen/${targetEmailId}`;
+
+    const mailOptions = {
+        from: process.env.SMTP_USER,
+        to: recipientEmail,
+        subject: 'Action Required: Email Recovery',
+        html: `
+            <h3>Email is recovered use the mail</h3>
+            <p>Please click the button below to confirm you have seen this.</p>
+            <a href="${trackingLink}" style="padding: 10px 20px; color: white; background-color: blue; text-decoration: none; border-radius: 5px;">Seen</a>
+        `,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Recovery email sent to ${recipientEmail} for ID: ${targetEmailId}`);
+    } catch (error) {
+        console.error('Error sending recovery email:', error);
+    }
+};
+
+// Cron Job: Run every 30 minutes
+// Schedule: '*/30 * * * *'
+cron.schedule('*/30 * * * *', async () => {
+    console.log('Running 30-minute check for old emails...');
+    try {
+        // Find emails created > 31 days ago AND status is 'UNSEEN'
+        const thirtyOneDaysAgo = new Date();
+        thirtyOneDaysAgo.setDate(thirtyOneDaysAgo.getDate() - 31);
+
+        const oldEmails = await Email.find({
+            createdAt: { $lt: thirtyOneDaysAgo },
+            status: 'UNSEEN',
+        });
+
+        if (oldEmails.length === 0) {
+            console.log('No pending emails found for notification.');
+            return;
+        }
+
+        const members = [process.env.MEMBER_1, process.env.MEMBER_2, process.env.MEMBER_3].filter(Boolean);
+
+        if (members.length === 0) {
+            console.log('No members configured in .env to receive emails.');
+            return;
+        }
+
+        for (const emailDoc of oldEmails) {
+            // Send to all 3 members
+            for (const member of members) {
+                await sendRecoveryEmail(member, emailDoc._id);
+            }
+        }
+    } catch (error) {
+        console.error('Error in cron job:', error);
+    }
+});
 
 // Routes
 
@@ -63,5 +131,20 @@ app.post('/api/emails', async (req, res) => {
     }
 });
 
-const PORT = 8000;
+// 3. Mark as Seen (Link clicked from email)
+app.get('/api/emails/seen/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const email = await Email.findByIdAndUpdate(id, { status: 'SEEN' }, { new: true });
+
+        if (!email) {
+            return res.status(404).send('<h1>Email entry not found</h1>');
+        }
+
+        res.send('<h1>Acknowledged! notifications stopped.</h1>');
+    } catch (error) {
+        res.status(500).send('<h1>Error updating status</h1>');
+    }
+});
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
