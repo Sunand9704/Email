@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mail, Plus, Users, AlertCircle, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { toast } from "sonner";
+import { getEmails, addEmail } from "./api";
+
 
 const MAX_EMAILS = 3;
-const API_URL = "http://localhost:5000/api/emails";
 
 interface EmailData {
   _id: string;
@@ -23,18 +23,12 @@ const EmailForm = () => {
   // Fetch emails from backend
   const { data: emails = [], isLoading: isLoadingEmails } = useQuery({
     queryKey: ["emails"],
-    queryFn: async () => {
-      const response = await axios.get<EmailData[]>(API_URL);
-      return response.data;
-    },
+    queryFn: getEmails,
   });
 
   // Add email mutation
   const addEmailMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const response = await axios.post(API_URL, { email });
-      return response.data;
-    },
+    mutationFn: addEmail,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       setInputValue("");
