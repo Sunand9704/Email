@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Environment-specific API URL (can be enhanced with import.meta.env for Vite if needed)
 // For now, defaulting to localhost:8000 as per backend config
-const API_URL = "http://localhost:8000/api";
+const API_URL = "https://email-backend-ych6.onrender.com/api";
 
 const api = axios.create({
     baseURL: API_URL,
