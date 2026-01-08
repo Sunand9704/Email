@@ -19,7 +19,7 @@ const MONGO_URI = process.env.MONGO_URI;
 
 // Database Connection
 mongoose
-    .connect(MONGO_URI)
+    .connect("mongodb+srv://hosannaking2019_db_user:KSLPT7LuGynb17Ae@cluster0.2hev2lt.mongodb.net/?appName=Cluster0")
     .then(() => console.log('MongoDB connected'))
     .catch((err) => console.error('MongoDB connection error:', err));
 
