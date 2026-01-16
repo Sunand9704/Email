@@ -55,36 +55,43 @@ const sendRecoveryEmail = async (recipientEmail, targetEmailId) => {
     }
 };
 
-// Cron Job: Run every 30 minutes
-// Schedule: '*/30 * * * *'
-cron.schedule('*/30 * * * *', async () => {
-    console.log('Running 30-minute check for old emails...');
+// Cron Job: Run every hour to check for 30-day alerts
+cron.schedule('0 * * * *', async () => {
+    console.log('Checking for 30-day email alerts...');
     try {
-        // Find emails created > 31 days ago AND status is 'UNSEEN'
-        const thirtyOneDaysAgo = new Date();
-        thirtyOneDaysAgo.setDate(thirtyOneDaysAgo.getDate() - 31);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const oldEmails = await Email.find({
-            createdAt: { $lt: thirtyOneDaysAgo },
-            status: 'UNSEEN',
+        // Find emails created <= 30 days ago that haven't been notified yet
+        const pendingEmails = await Email.find({
+            createdAt: { $lte: thirtyDaysAgo },
+            notificationSent: false,
         });
 
-        if (oldEmails.length === 0) {
-            console.log('No pending emails found for notification.');
+        if (pendingEmails.length === 0) {
+            console.log('No 30-day alerts to send.');
             return;
         }
 
-        const members = [process.env.MEMBER_1, process.env.MEMBER_2, process.env.MEMBER_3].filter(Boolean);
+        for (const emailDoc of pendingEmails) {
+            const mailOptions = {
+                from: process.env.SMTP_USER,
+                to: emailDoc.email,
+                subject: '30-Day Alert: Email Recovery Notification',
+                html: `
+                    <h3>30-Day Notification</h3>
+                    <p>This is an automated alert for the email: <strong>${emailDoc.email}</strong></p>
+                    <p>30 days have passed since this email was registered in our system.</p>
+                `,
+            };
 
-        if (members.length === 0) {
-            console.log('No members configured in .env to receive emails.');
-            return;
-        }
-
-        for (const emailDoc of oldEmails) {
-            // Send to all 3 members
-            for (const member of members) {
-                await sendRecoveryEmail(member, emailDoc._id);
+            try {
+                await transporter.sendMail(mailOptions);
+                emailDoc.notificationSent = true;
+                await emailDoc.save();
+                console.log(`30-day alert sent to ${emailDoc.email}`);
+            } catch (err) {
+                console.error(`Failed to send alert to ${emailDoc.email}:`, err);
             }
         }
     } catch (error) {
@@ -113,11 +120,7 @@ app.post('/api/emails', async (req, res) => {
             return res.status(400).json({ message: 'Email is required' });
         }
 
-        // Check total count
-        const count = await Email.countDocuments();
-        if (count >= 3) {
-            return res.status(400).json({ message: 'Email limit reached (Max 3 allowed)' });
-        }
+
 
         const newEmail = new Email({ email });
         await newEmail.save();

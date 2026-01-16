@@ -42,6 +42,6 @@ This project consists of a Node.js/Express backend and a React/Vite frontend.
    Access the app at the URL provided (usually `http://localhost:5173`).
 
 ## Features
-- Add emails (Max 3)
+- Add emails (No limit)
 - Prevent duplicates
 - View list of added emails
