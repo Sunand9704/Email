@@ -14,6 +14,10 @@ const emailSchema = new mongoose.Schema({
         type: String,
         default: 'UNSEEN', // UNSEEN, SEEN
     },
+    notificationSent: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 module.exports = mongoose.model('Email', emailSchema);

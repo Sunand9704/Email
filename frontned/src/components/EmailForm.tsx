@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { getEmails, addEmail } from "./api";
 
 
-const MAX_EMAILS = 3;
+
 
 interface EmailData {
   _id: string;
@@ -20,20 +20,18 @@ const EmailForm = () => {
   const [validationError, setValidationError] = useState("");
   const queryClient = useQueryClient();
 
-  // Fetch emails from backend
   const { data: emails = [], isLoading: isLoadingEmails } = useQuery({
     queryKey: ["emails"],
     queryFn: getEmails,
   });
 
-  // Add email mutation
   const addEmailMutation = useMutation({
     mutationFn: addEmail,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       setInputValue("");
       setValidationError("");
-      toast.success("Email added successfully!");
+      toast.success("Email tracking started!");
     },
     onError: (error: any) => {
       const msg = error.response?.data?.message || "Failed to add email";
@@ -42,126 +40,151 @@ const EmailForm = () => {
     },
   });
 
-  const validateEmail = (email: string) => {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return regex.test(email);
-  };
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError("");
-
     const trimmedEmail = inputValue.trim().toLowerCase();
 
-    if (!trimmedEmail) {
-      setValidationError("Please enter an email address");
-      return;
-    }
-
-    if (!validateEmail(trimmedEmail)) {
-      setValidationError("Please enter a valid email address");
-      return;
-    }
-
-    // Check duplicate locally for immediate feedback (optional, backend also checks)
-    if (emails.some((e: EmailData) => e.email === trimmedEmail)) {
-      setValidationError("This email has already been added");
-      return;
-    }
-
-    if (emails.length >= MAX_EMAILS) {
-      setValidationError(`Maximum of ${MAX_EMAILS} emails allowed`);
-      return;
-    }
+    if (!trimmedEmail) return setValidationError("Email is required");
+    if (!validateEmail(trimmedEmail)) return setValidationError("Invalid email address");
+    if (emails.some((e: EmailData) => e.email === trimmedEmail)) return setValidationError("Email already being tracked");
 
     addEmailMutation.mutate(trimmedEmail);
   };
 
-  const isMaxReached = emails.length >= MAX_EMAILS;
   const isSubmitting = addEmailMutation.isPending;
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-6">
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4 animate-in zoom-in duration-500">
-          <Mail className="w-8 h-8 text-primary" />
+    <div className="w-full max-w-lg mx-auto p-8 rounded-3xl bg-white/40 dark:bg-black/40 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-2xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="text-center space-y-4">
+        <div className="relative inline-flex mb-2">
+          <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
+          <div className="relative flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-lg shadow-primary/25">
+            <Mail className="w-10 h-10 text-white" />
+          </div>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          Email Collection
-        </h1>
-        <p className="text-muted-foreground">
-          Add up to {MAX_EMAILS} email addresses
-        </p>
+
+        <div className="space-y-1">
+          <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+            Email Alerts
+          </h1>
+          <p className="text-muted-foreground font-medium">
+            Automated notifications, delivered precisely.
+          </p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex gap-2">
-          <Input
-            type="email"
-            placeholder="Enter email address"
-            value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value);
-              setValidationError("");
-            }}
-            disabled={isMaxReached || isSubmitting || isLoadingEmails}
-            className="flex-1"
-          />
-          <Button type="submit" disabled={isMaxReached || isSubmitting || isLoadingEmails}>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 group">
+            <Input
+              type="email"
+              placeholder="name@example.com"
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setValidationError("");
+              }}
+              disabled={isSubmitting || isLoadingEmails}
+              className="h-12 px-4 rounded-xl border-2 border-primary/10 bg-white/50 dark:bg-black/20 focus:border-primary/50 focus:ring-0 transition-all duration-300 placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isSubmitting || isLoadingEmails}
+            className="h-12 px-8 rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all duration-300 active:scale-95 whitespace-nowrap"
+          >
             {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <Plus className="w-4 h-4 mr-1" />
+              <>
+                <Plus className="w-5 h-5 mr-2" />
+                Start Tracking
+              </>
             )}
-            Add
           </Button>
         </div>
 
         {validationError && (
-          <div className="flex items-center gap-2 text-destructive text-sm animate-in slide-in-from-top-1 duration-300">
+          <div className="flex items-center gap-2 text-destructive text-sm font-semibold px-2 animate-in slide-in-from-top-1">
             <AlertCircle className="w-4 h-4" />
             {validationError}
           </div>
         )}
-
-        {isMaxReached && !validationError && (
-          <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg animate-in fade-in duration-500">
-            <AlertCircle className="w-4 h-4" />
-            Maximum limit of {MAX_EMAILS} emails reached
-          </div>
-        )}
       </form>
 
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="w-4 h-4" />
-          <span>
-            {isLoadingEmails ? "Loading..." : `${emails.length} of ${MAX_EMAILS} emails added`}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-2 text-sm font-bold text-foreground/80 lowercase tracking-wider">
+            <Users className="w-4 h-4 text-primary" />
+            <span>Active Subscriptions</span>
+          </div>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-bold">
+            {emails.length} Total
           </span>
         </div>
 
         {isLoadingEmails ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+            <p className="text-sm text-muted-foreground font-medium animate-pulse">Fetching your emails...</p>
           </div>
         ) : emails.length > 0 ? (
-          <ul className="space-y-2">
-            {emails.map((emailObj: EmailData, index: number) => (
-              <li
-                key={emailObj._id}
-                className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border border-border animate-in slide-in-from-bottom-2 duration-300"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">
-                  {index + 1}
+          <div className="grid gap-3">
+            {emails.map((emailObj: EmailData, index: number) => {
+              const createdDate = new Date(emailObj.createdAt);
+              const targetDate = new Date(createdDate);
+              targetDate.setDate(targetDate.getDate() + 30);
+
+              const now = new Date();
+              const diffTime = targetDate.getTime() - now.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              const isExpired = diffDays <= 0;
+
+              return (
+                <div
+                  key={emailObj._id}
+                  className="group relative flex items-center gap-4 p-4 rounded-2xl bg-white/60 dark:bg-white/5 border border-white/40 dark:border-white/10 hover:border-primary/30 hover:shadow-xl transition-all duration-500 animate-in slide-in-from-bottom-2"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary text-sm font-bold border border-primary/5 group-hover:bg-primary group-hover:text-white transition-colors duration-500">
+                    {index + 1}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-bold text-foreground truncate">{emailObj.email}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${isExpired ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">
+                        {isExpired ? (
+                          <span className="text-emerald-600 dark:text-emerald-400">Alert Delivered</span>
+                        ) : (
+                          <>Alert in <span className="text-amber-600 dark:text-amber-400 font-black">{diffDays}d</span> • {targetDate.toLocaleDateString()}</>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {!isExpired && (
+                    <div className="hidden sm:block text-[10px] font-bold bg-muted px-2 py-1 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                      {targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
                 </div>
-                <span className="text-foreground">{emailObj.email}</span>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
-            No emails added yet
+          <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 rounded-3xl border-2 border-dashed border-primary/10 bg-primary/5 animate-in zoom-in duration-700">
+            <div className="p-4 rounded-full bg-white/50 backdrop-blur-lg">
+              <Mail className="w-8 h-8 text-primary/40" />
+            </div>
+            <div className="max-w-[200px]">
+              <p className="text-sm font-bold text-foreground">List is empty</p>
+              <p className="text-xs text-muted-foreground">Start by adding an email above to track its status.</p>
+            </div>
           </div>
         )}
       </div>
